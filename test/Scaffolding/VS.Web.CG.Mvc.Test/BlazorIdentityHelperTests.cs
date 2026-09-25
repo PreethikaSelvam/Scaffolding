@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.BlazorIdentity;
 using Xunit;
 
@@ -38,6 +39,16 @@ namespace Microsoft.VisualStudio.Web.CodeGenerators.Mvc
                     new object[] { "C:\\Some\\Path\\Templates\\Thing\\file.tt", "" },
                 };
             }
+        }
+
+        [Fact]
+        public void GetIdentityComponentsPath_ReturnsExpectedPath()
+        {
+            var projectDirectory = Path.Combine("C:", "temp", "MyBlazorApp");
+
+            var result = BlazorIdentityHelper.GetIdentityComponentsPath(projectDirectory);
+
+            Assert.Equal(Path.Combine(projectDirectory, "Components", "Account"), result);
         }
     }
 }

@@ -91,6 +91,9 @@ namespace Microsoft.VisualStudio.Web.CodeGenerators.Mvc.BlazorIdentity
             return null;
         }
 
+        internal static string GetIdentityComponentsPath(string projectDirectory)
+            => Path.Combine(projectDirectory, "Components", "Account");
+
         /// <summary>
         /// returning full file paths (.tt) for all blazor identity templates
         /// TODO throw exception if nothing found, can't really scaffold is no files were found

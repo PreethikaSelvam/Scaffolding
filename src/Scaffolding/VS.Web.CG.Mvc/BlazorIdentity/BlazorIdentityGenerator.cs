@@ -463,6 +463,11 @@ namespace Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Blazor
 
         private void ExecuteTemplates(BlazorIdentityModel templateModel)
         {
+            if (templateModel?.FilesToGenerate is null || !templateModel.FilesToGenerate.Any())
+            {
+                throw new InvalidOperationException("No Blazor Identity templates were selected for generation.");
+            }
+
             TemplateInvoker templateInvoker = new TemplateInvoker();
             var dictParams = new Dictionary<string, object>()
             {
@@ -471,30 +476,44 @@ namespace Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Blazor
 
             foreach (var templateName in templateModel.FilesToGenerate)
             {
-                ITextTransformation contextTemplate = GetBlazorIdentityTransformation(templateName);
+                var normalizedTemplateName = NormalizeTemplateName(templateName);
+                ITextTransformation contextTemplate = GetBlazorIdentityTransformation(normalizedTemplateName);
                 var templatedString = templateInvoker.InvokeTemplate(contextTemplate, dictParams);
-                if (!string.IsNullOrEmpty(templatedString))
+                if (string.IsNullOrEmpty(templatedString))
                 {
-                    // Files in Pages and Shared folders are Razor components, others are C# files
-                    string extension = templateName.StartsWith("Pages", StringComparison.OrdinalIgnoreCase) ||
-                                       templateName.StartsWith("Shared", StringComparison.OrdinalIgnoreCase) ? ".razor" : ".cs";
-                    string templateNameWithNamespace = $"{templateModel.BlazorIdentityNamespace}.{templateName}";
-                    string templatePath = StringUtil.ToPath(templateNameWithNamespace, templateModel.BaseOutputPath, ProjectContext.RootNamespace);
-                    string templatedFilePath = $"{templatePath}{extension}";
-                    var folderName = Path.GetDirectoryName(templatedFilePath);
-                    if (!FileSystem.DirectoryExists(folderName))
-                    {
-                        FileSystem.CreateDirectory(folderName);
-                    }
+                    throw new InvalidOperationException($"Template '{normalizedTemplateName}' produced empty output.");
+                }
 
-                    templatedString = StringUtil.NormalizeLineEndings(templatedString);
-                    if (!FileSystem.FileExists(templatedFilePath))
-                    {
-                        FileSystem.WriteAllText(templatedFilePath, templatedString);
-                        Logger.LogMessage($"Added Blazor identity file : {templatedFilePath}");
-                    }
+                // Files in Pages and Shared folders are Razor components, others are C# files
+                string extension = normalizedTemplateName.StartsWith("Pages", StringComparison.OrdinalIgnoreCase) ||
+                                   normalizedTemplateName.StartsWith("Shared", StringComparison.OrdinalIgnoreCase) ? ".razor" : ".cs";
+                string relativeTemplatePath = normalizedTemplateName.Replace('.', Path.DirectorySeparatorChar);
+                string templatedFilePath = $"{Path.Combine(BlazorIdentityHelper.GetIdentityComponentsPath(templateModel.BaseOutputPath), relativeTemplatePath)}{extension}";
+                var folderName = Path.GetDirectoryName(templatedFilePath);
+                if (!FileSystem.DirectoryExists(folderName))
+                {
+                    FileSystem.CreateDirectory(folderName);
+                }
+
+                templatedString = StringUtil.NormalizeLineEndings(templatedString);
+                if (!FileSystem.FileExists(templatedFilePath))
+                {
+                    FileSystem.WriteAllText(templatedFilePath, templatedString);
+                    Logger.LogMessage($"Added Blazor identity file : {templatedFilePath}");
                 }
             }
+        }
+
+        private static string NormalizeTemplateName(string templateName)
+        {
+            if (string.IsNullOrWhiteSpace(templateName))
+            {
+                throw new InvalidOperationException("Encountered an empty Blazor Identity template name.");
+            }
+
+            var normalizedName = templateName.Trim();
+            normalizedName = normalizedName.Replace('\\', '.').Replace('/', '.');
+            return normalizedName;
         }
 
         private void ExecuteApplicationUserTemplate(IdentityApplicationUserModel model)
@@ -561,7 +580,7 @@ namespace Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Blazor
 
         private void AddStaticFiles(BlazorIdentityModel templateModel)
         {
-            var identityComponentsAccountPath = Path.Combine(templateModel.BaseOutputPath, "Components", "Account");
+            var identityComponentsAccountPath = BlazorIdentityHelper.GetIdentityComponentsPath(templateModel.BaseOutputPath);
             if (!FileSystem.DirectoryExists(identityComponentsAccountPath))
             {
                 FileSystem.CreateDirectory(identityComponentsAccountPath);
@@ -588,27 +607,35 @@ namespace Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Blazor
         {
             if (string.IsNullOrEmpty(templateName))
             {
-                return null;
+                throw new InvalidOperationException("Template name cannot be null or empty.");
             }
 
             var typeName = StringUtil.GetTypeNameFromNamespace(templateName);
-            var t4TemplateType = BlazorIdentityTemplateTypes.FirstOrDefault(x => x.FullName.Contains(templateName) && x.Name.Equals(typeName, StringComparison.OrdinalIgnoreCase));
-            var t4TemplatePath = AllBlazorIdentityFiles[templateName];
-            var host = new TextTemplatingEngineHost { TemplateFile = t4TemplatePath };
-            try
-            {
-                ITextTransformation transformation = Activator.CreateInstance(t4TemplateType) as ITextTransformation;
-                if (transformation != null)
-                {
-                    transformation.Session = host.CreateSession();
-                }
+            var t4TemplateType = BlazorIdentityTemplateTypes.FirstOrDefault(x =>
+                x.FullName.IndexOf(templateName, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                x.Name.Equals(typeName, StringComparison.OrdinalIgnoreCase));
 
-                return transformation;
-            }
-            catch (Exception)
+            var templateKey = AllBlazorIdentityFiles.Keys.FirstOrDefault(k => k.Equals(templateName, StringComparison.OrdinalIgnoreCase));
+            if (string.IsNullOrEmpty(templateKey) || !AllBlazorIdentityFiles.TryGetValue(templateKey, out var t4TemplatePath))
             {
-                return null;
+                throw new InvalidOperationException($"Could not find template file for '{templateName}'.");
             }
+
+            if (t4TemplateType is null)
+            {
+                throw new InvalidOperationException($"Could not resolve template type for '{templateName}'.");
+            }
+
+            var host = new TextTemplatingEngineHost { TemplateFile = t4TemplatePath };
+
+            ITextTransformation transformation = Activator.CreateInstance(t4TemplateType) as ITextTransformation;
+            if (transformation is null)
+            {
+                throw new InvalidOperationException($"Template '{templateName}' does not implement the expected transformation interface.");
+            }
+
+            transformation.Session = host.CreateSession();
+            return transformation;
         }
     }
 }
