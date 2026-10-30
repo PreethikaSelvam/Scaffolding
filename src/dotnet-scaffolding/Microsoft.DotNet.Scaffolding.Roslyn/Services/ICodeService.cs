@@ -33,7 +33,12 @@ public interface ICodeService
     /// <returns></returns>
     Task ReloadWorkspaceAsync();
 
-    Task <List<ISymbol>> GetAllClassSymbolsAsync();
+    /// <summary>
+    /// Returns source class symbols from the target project and its transitive project references,
+    /// with target-project classes first. Package and framework types are not included.
+    /// </summary>
+    /// <param name="includeReferencedProjects">Whether to include classes from referenced projects.</param>
+    Task <List<ISymbol>> GetAllClassSymbolsAsync(bool includeReferencedProjects = true);
     Task<List<Document>> GetAllDocumentsAsync();
     Task<Document?> GetDocumentAsync(string? documentName);
 }

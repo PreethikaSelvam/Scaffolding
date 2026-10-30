@@ -15,6 +15,95 @@ public class RazorPagesCrudNet10IntegrationTests : RazorPagesCrudIntegrationTest
     protected override string TestClassName => nameof(RazorPagesCrudNet10IntegrationTests);
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Scaffold_RazorPagesCrud_ReferencedModelAndDbContext(bool directModelReference)
+    {
+        var modelDirectory = Path.Combine(_testDirectory, "ClassLibrary1");
+        var contextDirectory = Path.Combine(_testDirectory, "ClassLibrary2");
+        Directory.CreateDirectory(modelDirectory);
+        Directory.CreateDirectory(contextDirectory);
+        File.WriteAllText(Path.Combine(_testDirectory, "NuGet.config"), ScaffoldCliHelper.GetTestNuGetConfig(TargetFramework));
+        File.WriteAllText(Path.Combine(modelDirectory, "ClassLibrary1.csproj"), """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup><TargetFramework>net10.0</TargetFramework><Nullable>enable</Nullable></PropertyGroup>
+            </Project>
+            """);
+        File.WriteAllText(Path.Combine(modelDirectory, "Movie.cs"), """
+            namespace ClassLibrary1.Models;
+            public class Movie
+            {
+                public int Id { get; set; }
+                public string? Title { get; set; }
+            }
+            """);
+        File.WriteAllText(Path.Combine(contextDirectory, "ClassLibrary2.csproj"), """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+              <ItemGroup>
+                <ProjectReference Include="..\ClassLibrary1\ClassLibrary1.csproj" />
+                <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+              </ItemGroup>
+            </Project>
+            """);
+        var contextPath = Path.Combine(contextDirectory, "MyDbContext.cs");
+        const string contextSource = """
+            using ClassLibrary1.Models;
+            using Microsoft.EntityFrameworkCore;
+            namespace ClassLibrary2.DBContext;
+            public class MyDbContext : DbContext
+            {
+                public MyDbContext(DbContextOptions<MyDbContext> options) : base(options) { }
+                public DbSet<Movie> Movies { get; set; }
+            }
+            """;
+        File.WriteAllText(contextPath, contextSource);
+        var modelReference = directModelReference
+            ? """<ProjectReference Include="..\ClassLibrary1\ClassLibrary1.csproj" />"""
+            : string.Empty;
+        File.WriteAllText(_testProjectPath, ProjectContent.Replace("</Project>", $"""
+              <ItemGroup>
+                {modelReference}
+                <ProjectReference Include="..\ClassLibrary2\ClassLibrary2.csproj" />
+                <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.9" />
+              </ItemGroup>
+            </Project>
+            """));
+        File.WriteAllText(Path.Combine(_testProjectDir, "Program.cs"), ScaffoldCliHelper.GetMinimalProgramCs());
+
+        var (preExitCode, preOutput, preError) = await RunBuildAsync(_testProjectDir);
+        Assert.True(preExitCode == 0, $"Build before scaffolding failed.\n{preOutput}\n{preError}");
+
+        var (exitCode, output, error) = await ScaffoldCliHelper.RunScaffoldAsync(
+            TargetFramework, "razorpages-crud",
+            "--project", _testProjectPath,
+            "--model", "Movie",
+            "--dataContext", "MyDbContext",
+            "--dbProvider", "sqlserver-efcore",
+            "--page", "CRUD");
+
+        Assert.True(exitCode == 0, $"Scaffolding failed.\n{output}\n{error}");
+        Assert.DoesNotContain("Invalid --model", output);
+        Assert.DoesNotContain("An error occurred", output);
+        foreach (var page in new[] { "Create", "Delete", "Details", "Edit", "Index" })
+        {
+            var pagePath = Path.Combine(_testProjectDir, "Pages", "MoviePages", $"{page}.cshtml");
+            Assert.True(File.Exists(pagePath), $"Missing {pagePath}.\n{output}\n{error}");
+            Assert.True(File.Exists(pagePath + ".cs"), $"Missing {pagePath}.cs");
+            var pageSource = File.ReadAllText(pagePath + ".cs");
+            Assert.Contains("using ClassLibrary1.Models;", pageSource);
+            Assert.Contains("using ClassLibrary2.DBContext;", pageSource);
+            Assert.Contains("MyDbContext", pageSource);
+            Assert.Contains("_context.Movies", pageSource);
+        }
+
+        Assert.Equal(contextSource, File.ReadAllText(contextPath));
+        Assert.False(File.Exists(Path.Combine(_testProjectDir, "Data", "MyDbContext.cs")));
+        var (postExitCode, postOutput, postError) = await RunBuildAsync(_testProjectDir);
+        Assert.True(postExitCode == 0, $"Build after scaffolding failed.\n{postOutput}\n{postError}");
+    }
+
+    [Theory]
     [InlineData("Create.tt")]
     [InlineData("Create.cs")]
     [InlineData("CreateModel.tt")]

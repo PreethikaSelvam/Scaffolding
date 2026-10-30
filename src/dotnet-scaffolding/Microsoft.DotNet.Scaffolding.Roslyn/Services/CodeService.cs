@@ -134,7 +134,7 @@ public class CodeService : ICodeService, IDisposable
         {
             workspace = MSBuildWorkspace.Create();
             _workspaceFailedRegistration = workspace.RegisterWorkspaceFailedHandler(OnWorkspaceFailed);
-            workspace.LoadMetadataForReferencedProjects = true;
+            workspace.LoadMetadataForReferencedProjects = false;
             await workspace.OpenProjectAsync(_projectPath);
             _msBuildWorkspace = workspace;
             return _msBuildWorkspace;
@@ -269,18 +269,18 @@ public class CodeService : ICodeService, IDisposable
         UnloadWorkspace();
     }
 
-    public async Task<List<ISymbol>> GetAllClassSymbolsAsync()
+    public async Task<List<ISymbol>> GetAllClassSymbolsAsync(bool includeReferencedProjects = true)
     {
         EnsureInitialized();
         List<ISymbol> classSymbols = [];
+        var msBuildWorkspace = await GetMsBuildWorkspaceAsync();
+        var project = msBuildWorkspace?.CurrentSolution?.GetProject(_projectPath);
         if (_compilation is null)
         {
             // Explicitly use only the MSBuildWorkspace for compilation — the fallback
             // AdhocWorkspace doesn't carry NuGet/SDK reference assemblies, so its
             // GetCompilationAsync() would produce a poorly-resolved compilation that is
             // no better than GetFallbackCompilationAsync() below.
-            var msBuildWorkspace = await GetMsBuildWorkspaceAsync();
-            var project = msBuildWorkspace?.CurrentSolution?.GetProject(_projectPath);
             if (project is not null)
             {
                 _compilation = await project.GetCompilationAsync();
@@ -296,19 +296,41 @@ public class CodeService : ICodeService, IDisposable
             }
         }
 
-        List<ISymbol?>? compilationClassSymbols = _compilation?.SyntaxTrees.SelectMany(tree =>
+        List<Compilation> compilations = [];
+        if (_compilation is not null)
         {
-            var model = _compilation.GetSemanticModel(tree);
+            compilations.Add(_compilation);
+        }
+
+        if (includeReferencedProjects && project is not null)
+        {
+            var dependencies = project.Solution.GetProjectDependencyGraph()
+                .GetProjectsThatThisProjectTransitivelyDependsOn(project.Id);
+            foreach (var projectId in dependencies)
+            {
+                var referencedProject = project.Solution.GetProject(projectId);
+                if (referencedProject is not null &&
+                    await referencedProject.GetCompilationAsync() is { } referencedCompilation)
+                {
+                    compilations.Add(referencedCompilation);
+                }
+            }
+        }
+
+        var compilationClassSymbols = compilations.SelectMany(compilation =>
+            compilation.SyntaxTrees.SelectMany(tree =>
+        {
+            var model = compilation.GetSemanticModel(tree);
             return tree.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>()
                 .Select(classSyntax => model.GetDeclaredSymbol(classSyntax))
                 .Where(classSymbol => classSymbol is not null &&
                                      !classSymbol.MetadataName.StartsWith("<"));    //if the metadata name starts with < it is a compiler generated class
         })
-        .Append(_compilation.GetEntryPoint(CancellationToken.None)?.ContainingType)
+        .Append(compilation.GetEntryPoint(CancellationToken.None)?.ContainingType))
         .Distinct(SymbolEqualityComparer.Default)
         .ToList();
 
-        compilationClassSymbols?.ForEach(x =>
+        compilationClassSymbols.ForEach(x =>
         {
             if (x is not null)
             {

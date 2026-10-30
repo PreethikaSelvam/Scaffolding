@@ -21,6 +21,69 @@ public class CodeServiceTests : IDisposable
         Directory.CreateDirectory(_directory);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetAllClassSymbolsAsync_IncludesReferencedProjects(bool directModelReference)
+    {
+        var modelProject = WriteProject("Models", """
+            namespace Models;
+            public class Movie { public int Id { get; set; } }
+            """);
+        WriteProject("Repository", "namespace Repository; public class MyDbContext { }",
+            """<ProjectReference Include="..\Models\Models.csproj" />""");
+        var modelReference = directModelReference
+            ? """<ProjectReference Include="..\Models\Models.csproj" />"""
+            : string.Empty;
+        var webProject = WriteProject("Web", "namespace Web; public class Movie { }",
+            $"""<ProjectReference Include="..\Repository\Repository.csproj" />{modelReference}""");
+        using var service = new CodeService(NullLogger.Instance, webProject);
+        Assert.IsNotType<AdhocWorkspace>(await service.GetWorkspaceAsync());
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var symbols = await service.GetAllClassSymbolsAsync();
+
+            Assert.Equal(3, symbols.Count);
+            Assert.Equal("Web.Movie", symbols[0].ToDisplayString());
+            var model = Assert.Single(symbols, symbol => symbol.ToDisplayString() == "Models.Movie");
+            Assert.Equal(Path.Combine(Path.GetDirectoryName(modelProject), "Classes.cs"),
+                Assert.Single(model.Locations).SourceTree.FilePath);
+            Assert.Contains(symbols, symbol => symbol.ToDisplayString() == "Repository.MyDbContext");
+        }
+
+        Assert.Equal("Web.Movie", Assert.Single(
+            await service.GetAllClassSymbolsAsync(includeReferencedProjects: false)).ToDisplayString());
+        await service.ReloadWorkspaceAsync();
+        Assert.Equal(3, (await service.GetAllClassSymbolsAsync()).Count);
+    }
+
+    [Fact]
+    public async Task GetAllClassSymbolsAsync_FallbackCompilation_PreservesLocalClasses()
+    {
+        File.WriteAllText(Path.Combine(_directory, "Movie.cs"), "public class Movie { public int Id { get; set; } }");
+        using var service = new CodeService(NullLogger.Instance, Path.Combine(_directory, "Missing.csproj"));
+
+        var symbol = Assert.Single(await service.GetAllClassSymbolsAsync());
+
+        Assert.Equal("Movie", symbol.Name);
+    }
+
+    private string WriteProject(string name, string source, string references = "")
+    {
+        var directory = Path.Combine(_directory, name);
+        Directory.CreateDirectory(directory);
+        var projectPath = Path.Combine(directory, name + ".csproj");
+        File.WriteAllText(projectPath, $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+              <ItemGroup>{references}</ItemGroup>
+            </Project>
+            """);
+        File.WriteAllText(Path.Combine(directory, "Classes.cs"), source);
+        return projectPath;
+    }
+
     [Fact]
     public async Task TryApplyChanges_FallbackWorkspace_PersistsLazySyntaxChanges()
     {
