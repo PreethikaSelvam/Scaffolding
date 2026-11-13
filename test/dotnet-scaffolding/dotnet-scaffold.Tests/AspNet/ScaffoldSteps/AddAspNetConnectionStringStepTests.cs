@@ -186,6 +186,38 @@ public class AddAspNetConnectionStringStepTests
         _mockFileSystem.Verify(fs => fs.WriteAllText(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData("{ \"AllowedHosts\": \"*\" // development settings\n}")]
+    [InlineData("{ /* development settings */ \"AllowedHosts\": \"*\" }")]
+    [InlineData("{ \"AllowedHosts\": \"*\", }")]
+    public async Task ExecuteAsync_AcceptsConfigurationJson_WhenAddingConnectionString(string json)
+    {
+        string appSettingsPath = Path.Combine(_testProjectPath, "appsettings.json");
+        _mockFileSystem.Setup(fs => fs.EnumerateFiles(_testProjectPath, "appsettings.json", SearchOption.AllDirectories))
+            .Returns(new[] { appSettingsPath });
+        _mockFileSystem.Setup(fs => fs.FileExists(appSettingsPath)).Returns(true);
+        _mockFileSystem.Setup(fs => fs.ReadAllText(appSettingsPath)).Returns(json);
+        string? writtenContent = null;
+        _mockFileSystem.Setup(fs => fs.WriteAllText(appSettingsPath, It.IsAny<string>()))
+            .Callback<string, string>((_, content) => writtenContent = content);
+
+        var step = new AddAspNetConnectionStringStep(
+            NullLogger<AddAspNetConnectionStringStep>.Instance,
+            _mockFileSystem.Object,
+            Mock.Of<ITelemetryService>())
+        {
+            BaseProjectPath = _testProjectPath,
+            ConnectionStringName = "AppDbContext",
+            ConnectionString = "Server=(localdb)\\mssqllocaldb;Database=Products;"
+        };
+
+        Assert.True(await step.ExecuteAsync(_context));
+        Assert.NotNull(writtenContent);
+        var result = JsonNode.Parse(writtenContent);
+        Assert.Equal("*", result?["AllowedHosts"]?.GetValue<string>());
+        Assert.Equal(step.ConnectionString, result?["ConnectionStrings"]?["AppDbContext"]?.GetValue<string>());
+    }
+
     [Fact]
     public async Task ExecuteAsync_ReturnsFalse_WhenJsonParsingFails()
     {

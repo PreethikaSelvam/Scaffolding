@@ -61,7 +61,11 @@ internal class AddAspNetConnectionStringStep : ScaffoldStep
             try
             {
                 var jsonString = _fileSystem.ReadAllText(appSettingsFile);
-                content = JsonNode.Parse(jsonString);
+                content = JsonNode.Parse(jsonString, documentOptions: new JsonDocumentOptions
+                {
+                    CommentHandling = JsonCommentHandling.Skip,
+                    AllowTrailingCommas = true
+                });
             }
             catch (Exception ex)
             {

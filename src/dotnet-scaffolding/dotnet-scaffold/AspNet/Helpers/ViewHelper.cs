@@ -40,8 +40,9 @@ internal class ViewHelper
     /// </summary>
     /// <param name="allT4TemplatePaths">The collection of all T4 template paths.</param>
     /// <param name="viewModel">The view model containing project and model information.</param>
+    /// <param name="controllerName">The controller name when generating controller views; otherwise null.</param>
     /// <returns>An enumerable collection of <see cref="TextTemplatingProperty"/> instances.</returns>
-    internal static IEnumerable<TextTemplatingProperty> GetTextTemplatingProperties(IEnumerable<string> allT4TemplatePaths, ViewModel viewModel)
+    internal static IEnumerable<TextTemplatingProperty> GetTextTemplatingProperties(IEnumerable<string> allT4TemplatePaths, ViewModel viewModel, string? controllerName = null)
     {
         var textTemplatingProperties = new List<TextTemplatingProperty>();
         if (allT4TemplatePaths is not null && allT4TemplatePaths.Any()) 
@@ -57,7 +58,13 @@ internal class ViewHelper
                         continue;
                     }
 
-                    string baseOutputPath = GetBaseOutputPath(viewModel.ModelInfo.ModelTypeName, viewModel.ProjectInfo.ProjectPath);
+                    string viewFolder = controllerName ?? viewModel.ModelInfo.ModelTypeName;
+                    if (controllerName is not null && controllerName.EndsWith("Controller", StringComparison.OrdinalIgnoreCase))
+                    {
+                        viewFolder = controllerName[..^"Controller".Length];
+                    }
+
+                    string baseOutputPath = GetBaseOutputPath(viewFolder, viewModel.ProjectInfo.ProjectPath);
                     string outputFileName = Path.Combine(baseOutputPath, $"{templateName}{Common.Constants.ViewExtension}");
                     textTemplatingProperties.Add(new()
                     {

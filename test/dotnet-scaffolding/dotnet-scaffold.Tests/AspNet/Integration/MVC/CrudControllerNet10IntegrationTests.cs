@@ -14,6 +14,88 @@ public class CrudControllerNet10IntegrationTests : CrudControllerIntegrationTest
     protected override string TestClassName => nameof(CrudControllerNet10IntegrationTests);
 
     [Fact]
+    public async Task Scaffold_ProductWithExistingContextAndCommentedSettings_Net10()
+    {
+        File.WriteAllText(_testProjectPath, """
+            <Project Sdk="Microsoft.NET.Sdk.Web">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <RootNamespace>Store.Web</RootNamespace>
+              </PropertyGroup>
+              <ItemGroup>
+                <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
+                <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
+                <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="10.0.2" />
+              </ItemGroup>
+            </Project>
+            """);
+        File.WriteAllText(Path.Combine(_testProjectDir, "Program.cs"), """
+            using Microsoft.EntityFrameworkCore;
+            using Store.Web.Data;
+            var builder = WebApplication.CreateBuilder(args);
+            builder.Services.AddControllersWithViews();
+            builder.Services.AddDbContext<AppDbContext>(options =>
+                options.UseSqlServer(builder.Configuration.GetConnectionString("AppDbContext")));
+            var app = builder.Build();
+            app.MapControllerRoute("default", "{controller=Home}/{action=Index}/{id?}");
+            app.Run();
+            """);
+        File.WriteAllText(Path.Combine(_testProjectDir, "Product.cs"), """
+            namespace Store.Web.Models;
+            public class Product
+            {
+                public int ProductId { get; set; }
+                public string Name { get; set; } = "";
+                public decimal Price { get; set; }
+            }
+            """);
+        File.WriteAllText(Path.Combine(_testProjectDir, "AppDbContext.cs"), """
+            using Microsoft.EntityFrameworkCore;
+            using Store.Web.Models;
+            namespace Store.Web.Data;
+            public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+            {
+                public DbSet<Product> Products { get; set; }
+            }
+            """);
+        File.WriteAllText(Path.Combine(_testProjectDir, "appsettings.json"), """
+            {
+              "AllowedHosts": "*", // valid ASP.NET Core configuration
+            }
+            """);
+
+        var (beforeExit, beforeOutput, beforeError) = await RunBuildAsync(_testProjectDir);
+        Assert.True(beforeExit == 0, $"Initial build failed:\n{beforeOutput}\n{beforeError}");
+
+        var (exitCode, output, error) = await ScaffoldCliHelper.RunScaffoldAsync(
+            ScaffoldCliHelper.GetTestTargetFramework(),
+            "mvccontroller-crud",
+            "--project", _testProjectPath,
+            "--model", "Product",
+            "--controller", "ProductsController",
+            "--dataContext", "AppDbContext",
+            "--dbProvider", "sqlserver-efcore",
+            "--views");
+        Assert.True(exitCode == 0, $"Scaffolding failed:\n{output}\n{error}");
+
+        string controller = File.ReadAllText(Path.Combine(_testProjectDir, "Controllers", "ProductsController.cs"));
+        Assert.Contains("namespace Store.Web.Controllers;", controller);
+        Assert.Contains("Details(int? id)", controller);
+        Assert.Contains("m.ProductId == id", controller);
+        foreach (string view in new[] { "Create", "Edit", "Details", "Delete", "Index" })
+        {
+            Assert.True(File.Exists(Path.Combine(_testProjectDir, "Views", "Products", $"{view}.cshtml")));
+        }
+        Assert.False(Directory.Exists(Path.Combine(_testProjectDir, "Views", "Product")));
+        string index = File.ReadAllText(Path.Combine(_testProjectDir, "Views", "Products", "Index.cshtml"));
+        Assert.Contains("asp-route-id=\"@item.ProductId\"", index);
+
+        var (afterExit, afterOutput, afterError) = await RunBuildAsync(_testProjectDir);
+        Assert.True(afterExit == 0, $"Generated project failed to build:\n{afterOutput}\n{afterError}");
+    }
+
+    [Fact]
     public async Task Scaffold_MvcControllerCrud_Net10_CliInvocation()
     {
         File.WriteAllText(_testProjectPath, ProjectContent);
@@ -44,8 +126,8 @@ public class CrudControllerNet10IntegrationTests : CrudControllerIntegrationTest
                 "Controller file 'Controllers/TestController.cs' should be created.");
             Assert.True(File.Exists(Path.Combine(_testProjectDir, "Data", "TestDbContext.cs")),
                 "DbContext file 'Data/TestDbContext.cs' should be created.");
-            var viewsDir = Path.Combine(_testProjectDir, "Views", "TestModel");
-            Assert.True(Directory.Exists(viewsDir), "Views/TestModel directory should be created.");
+            var viewsDir = Path.Combine(_testProjectDir, "Views", "Test");
+            Assert.True(Directory.Exists(viewsDir), "Views/Test directory should be created.");
             foreach (var view in new[] { "Create.cshtml", "Delete.cshtml", "Details.cshtml", "Edit.cshtml", "Index.cshtml" })
             {
                 Assert.True(File.Exists(Path.Combine(viewsDir, view)), $"View '{view}' should be created.");

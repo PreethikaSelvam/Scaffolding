@@ -16,6 +16,32 @@ namespace Microsoft.DotNet.Tools.Scaffold.Tests.AspNet.Helpers;
 
 public class ViewHelperTests
 {
+    [Theory]
+    [InlineData("ProductsController", "Products")]
+    [InlineData("CatalogController", "Catalog")]
+    [InlineData("Catalog", "Catalog")]
+    [InlineData(null, "Product")]
+    public void GetTextTemplatingProperties_UsesControllerViewFolder(string? controllerName, string folder)
+    {
+        string projectPath = Path.Combine("test", "project", "TestProject.csproj");
+        var model = new ViewModel
+        {
+            PageType = "CRUD",
+            ModelInfo = new ModelInfo { ModelTypeName = "Product" },
+            ProjectInfo = new ProjectInfo(projectPath),
+            DbContextInfo = new DbContextInfo()
+        };
+        string[] templates = [ViewHelper.CreateTemplate, ViewHelper.EditTemplate, ViewHelper.DetailsTemplate,
+            ViewHelper.DeleteTemplate, ViewHelper.IndexTemplate];
+
+        var result = ViewHelper.GetTextTemplatingProperties(templates, model, controllerName).ToList();
+
+        Assert.Equal(5, result.Count);
+        Assert.All(result, property => Assert.Equal(
+            Path.Combine("test", "project", "Views", folder, Path.GetFileNameWithoutExtension(property.TemplatePath) + ".cshtml"),
+            property.OutputPath));
+    }
+
     [Fact]
     public void GetTextTemplatingProperties_WithValidCreateTemplate_ReturnsExpectedProperty()
     {

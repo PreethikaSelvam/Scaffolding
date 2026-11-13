@@ -5,6 +5,7 @@ using Microsoft.DotNet.Scaffolding.Core.Scaffolders;
 using Microsoft.DotNet.Scaffolding.Core.Steps;
 using Microsoft.DotNet.Scaffolding.Internal.Services;
 using Microsoft.DotNet.Scaffolding.Internal.Telemetry;
+using Microsoft.DotNet.Scaffolding.Roslyn.Services;
 using Microsoft.DotNet.Scaffolding.TextTemplating.DbContext;
 using Microsoft.DotNet.Tools.Scaffold.AspNet.Common;
 using Microsoft.DotNet.Tools.Scaffold.AspNet.Helpers;
@@ -250,9 +251,20 @@ internal class ValidateEfControllerStep : ScaffoldStep
             dbContextInfo.EfScenario = true;
         }
 
+        var projectService = new MSBuildProjectService(settings.Project);
+        if (!projectService.TryGetEvaluatedProperties(["RootNamespace"], out var properties, out var error))
+        {
+            _logger.LogError("Unable to determine the controller namespace for '{Project}': {Error}", settings.Project, error);
+            return null;
+        }
+
+        string rootNamespace = properties["RootNamespace"];
+        string controllerNamespace = string.IsNullOrEmpty(rootNamespace) ? "Controllers" : $"{rootNamespace}.Controllers";
+
         EfControllerModel scaffoldingModel = new()
         {
             ControllerName = settings.ControllerName,
+            ControllerNamespace = controllerNamespace,
             ControllerType = settings.ControllerType,
             ProjectInfo = projectInfo,
             ModelInfo = modelInfo,

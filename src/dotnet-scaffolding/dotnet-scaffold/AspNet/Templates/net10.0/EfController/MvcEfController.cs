@@ -35,7 +35,7 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.EfController
     string entitySetName = string.IsNullOrWhiteSpace(Model.DbContextInfo.EntitySetVariableName) ? modelName : Model.DbContextInfo.EntitySetVariableName;
     string modelNamespace = Model.ModelInfo.ModelNamespace;
     string primaryKeyName = Model.ModelInfo.PrimaryKeyName;
-    string primaryKeyNameLowerInv = primaryKeyName.ToLowerInvariant();
+    string routeParameterName = "id";
     string primaryKeyTypeName = Model.ModelInfo.PrimaryKeyTypeName;
     string bindProperties = string.Join(",", Model.ModelInfo.ModelProperties?.Select(p => p.Name) ?? Enumerable.Empty<string>());
 
@@ -59,7 +59,13 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.EfController
             this.Write(";\r\n");
   }
 
-            this.Write("\r\npublic class ");
+            this.Write("\r\n");
+ if (!string.IsNullOrEmpty(Model.ControllerNamespace)) {
+            this.Write("namespace ");
+            this.Write(this.ToStringHelper.ToStringWithCulture(Model.ControllerNamespace));
+            this.Write(";\r\n\r\n");
+ }
+            this.Write("public class ");
             this.Write(this.ToStringHelper.ToStringWithCulture(Model.ControllerName));
             this.Write(" : Controller\r\n{\r\n    private readonly ");
             this.Write(this.ToStringHelper.ToStringWithCulture(dbContextName));
@@ -77,9 +83,9 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.EfController
             this.Write("/Details/5\r\n    public async Task<IActionResult> Details(");
             this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyTypeName));
             this.Write("? ");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(")\r\n    {\r\n        if (");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(" == null)\r\n        {\r\n            return NotFound();\r\n        }\r\n\r\n        var ");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerInv));
             this.Write(" = await _context.");
@@ -87,7 +93,7 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.EfController
             this.Write("\r\n            .FirstOrDefaultAsync(m => m.");
             this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyName));
             this.Write(" == ");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(");\r\n        if (");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerInv));
             this.Write(" == null)\r\n        {\r\n            return NotFound();\r\n        }\r\n\r\n        return" +
@@ -119,15 +125,15 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.EfController
             this.Write("/Edit/5\r\n    public async Task<IActionResult> Edit(");
             this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyTypeName));
             this.Write("? ");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(")\r\n    {\r\n        if (");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(" == null)\r\n        {\r\n            return NotFound();\r\n        }\r\n\r\n        var ");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerInv));
             this.Write(" = await _context.");
             this.Write(this.ToStringHelper.ToStringWithCulture(entitySetName));
             this.Write(".FindAsync(");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(");\r\n        if (");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerInv));
             this.Write(" == null)\r\n        {\r\n            return NotFound();\r\n        }\r\n        return V" +
@@ -143,7 +149,7 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.EfController
     public async Task<IActionResult> Edit(");
             this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyTypeName));
             this.Write("? ");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(", [Bind(\"");
             this.Write(this.ToStringHelper.ToStringWithCulture(bindProperties));
             this.Write("\")] ");
@@ -151,7 +157,7 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.EfController
             this.Write(" ");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerInv));
             this.Write(")\r\n    {\r\n        if (");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(" != ");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerInv));
             this.Write(".");
@@ -185,9 +191,9 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.EfController
             this.Write("/Delete/5\r\n    public async Task<IActionResult> Delete(");
             this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyTypeName));
             this.Write("? ");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(")\r\n    {\r\n        if (");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(" == null)\r\n        {\r\n            return NotFound();\r\n        }\r\n\r\n        var ");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerInv));
             this.Write(" = await _context.");
@@ -195,7 +201,7 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.EfController
             this.Write("\r\n            .FirstOrDefaultAsync(m => m.");
             this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyName));
             this.Write(" == ");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(");\r\n        if (");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerInv));
             this.Write(" == null)\r\n        {\r\n            return NotFound();\r\n        }\r\n\r\n        return" +
@@ -207,13 +213,13 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.EfController
                     "    public async Task<IActionResult> DeleteConfirmed(");
             this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyTypeName));
             this.Write("? ");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(")\r\n    {\r\n        var ");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerInv));
             this.Write(" = await _context.");
             this.Write(this.ToStringHelper.ToStringWithCulture(entitySetName));
             this.Write(".FindAsync(");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(");\r\n        if (");
             this.Write(this.ToStringHelper.ToStringWithCulture(modelNameLowerInv));
             this.Write(" != null)\r\n        {\r\n            _context.");
@@ -226,13 +232,13 @@ namespace Microsoft.DotNet.Tools.Scaffold.AspNet.Templates.net10.EfController
             this.Write("Exists(");
             this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyTypeName));
             this.Write("? ");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(")\r\n    {\r\n        return _context.");
             this.Write(this.ToStringHelper.ToStringWithCulture(entitySetName));
             this.Write(".Any(e => e.");
             this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyName));
             this.Write(" == ");
-            this.Write(this.ToStringHelper.ToStringWithCulture(primaryKeyNameLowerInv));
+            this.Write(this.ToStringHelper.ToStringWithCulture(routeParameterName));
             this.Write(");\r\n    }\r\n}\r\n");
             return this.GenerationEnvironment.ToString();
         }

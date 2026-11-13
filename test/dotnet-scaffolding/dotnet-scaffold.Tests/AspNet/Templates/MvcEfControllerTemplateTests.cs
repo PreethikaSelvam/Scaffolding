@@ -27,6 +27,51 @@ namespace Microsoft.DotNet.Tools.Scaffold.Tests.AspNet.Templates;
 /// </summary>
 public class MvcEfControllerTemplateTests
 {
+    [Theory]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    public void MvcController_UsesIdForConventionalRoutes(int version)
+    {
+        var model = CreateProductEfControllerModel();
+        string result = version switch
+        {
+            9 => CreateNet9Template(model).TransformText(),
+            10 => CreateNet10Template(model).TransformText(),
+            _ => CreateNet11Template(model).TransformText()
+        };
+
+        Assert.Contains("Details(int? id)", result);
+        Assert.Contains("Edit(int? id)", result);
+        Assert.Contains("Edit(int? id, [Bind(", result);
+        Assert.Contains("Delete(int? id)", result);
+        Assert.Contains("DeleteConfirmed(int? id)", result);
+        Assert.Contains("m.ProductId == id", result);
+        Assert.Contains("if (id != product.ProductId)", result);
+        Assert.DoesNotContain("int? productid", result);
+    }
+
+    [Theory]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    public void MvcController_EmitsControllerNamespace(int version)
+    {
+        var model = CreateProductEfControllerModel();
+        model.ControllerNamespace = "Store.Web.Controllers";
+        string result = version switch
+        {
+            9 => CreateNet9Template(model).TransformText(),
+            10 => CreateNet10Template(model).TransformText(),
+            _ => CreateNet11Template(model).TransformText()
+        };
+
+        var root = CSharpSyntaxTree.ParseText(result).GetCompilationUnitRoot();
+        var controller = Assert.Single(root.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.ClassDeclarationSyntax>());
+        var controllerNamespace = Assert.IsType<Microsoft.CodeAnalysis.CSharp.Syntax.FileScopedNamespaceDeclarationSyntax>(controller.Parent);
+        Assert.Equal("Store.Web.Controllers", controllerNamespace.Name.ToString());
+    }
+
     #region Net9 — [Bind] uses actual model properties
 
     [Fact]

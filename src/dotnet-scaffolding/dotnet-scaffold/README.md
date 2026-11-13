@@ -1,6 +1,26 @@
 New and improved scaffolding experience. 
 More details coming soon!
 
+### MVC controller scaffolding
+
+EF MVC controllers use the project's evaluated root namespace with `.Controllers`
+and conventional `id` route parameters, including models whose key is named
+`ProductId`. With `--views`, views are written beneath `Views\<controller-name>`
+with the trailing `Controller` suffix removed, independently of the model name.
+Standalone `views` scaffolding continues to use the model name.
+
+Connection-string updates accept JSON comments and trailing commas in
+`appsettings.json`, matching ASP.NET Core configuration. When an update is needed,
+the file is serialized without preserving comments or original formatting.
+Existing connection-string values are not overwritten.
+
+The new `dotnet scaffold` engine uses compiled T4 templates; it does not load
+legacy `CodeTemplates\ControllerViews\*.cshtml` overrides. For legacy Razor
+template customization, use `dotnet aspnet-codegenerator` with project-local
+`Templates\ControllerViews\*.cshtml` templates. Installing
+`Microsoft.VisualStudio.Web.CodeGeneration.Design` does not switch the new
+scaffolder to the legacy template engine.
+
 ### Entra ID account selection
 
 The interactive **Select Existing Application** picker displays each application's
