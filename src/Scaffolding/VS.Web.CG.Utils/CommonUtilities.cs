@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -13,14 +14,22 @@ namespace Microsoft.VisualStudio.Web.CodeGeneration
 {
     public static class CommonUtilities
     {
-        [SuppressMessage("supressing re-throw exception", "CA2200")]
         public static CompilationResult GetAssemblyFromCompilation(
             ICodeGenAssemblyLoadContext loader,
             CodeAnalysis.Compilation compilation)
         {
+            return GetAssemblyFromCompilation(loader, compilation, manifestResources: null);
+        }
+
+        [SuppressMessage("supressing re-throw exception", "CA2200")]
+        public static CompilationResult GetAssemblyFromCompilation(
+            ICodeGenAssemblyLoadContext loader,
+            CodeAnalysis.Compilation compilation,
+            IEnumerable<ResourceDescription> manifestResources)
+        {
             using (var ms = new MemoryStream())
             {
-                var result = compilation.Emit(ms, pdbStream: null);
+                var result = compilation.Emit(ms, pdbStream: null, manifestResources: manifestResources);
 
                 if (!result.Success)
                 {
